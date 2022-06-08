@@ -1,0 +1,5 @@
+make --dry-run --keep-going --print-directory
+make: Entering directory '/mnt/c/Users/Usuário/Desktop/faculdade/ED/Trabalho-ED-2'
+gcc -o trabalho2.exe src/main.c -Wall -Wextra -Wpedantic
+make: Leaving directory '/mnt/c/Users/Usuário/Desktop/faculdade/ED/Trabalho-ED-2'
+ 
