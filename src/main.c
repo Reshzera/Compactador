@@ -16,6 +16,8 @@
 #define MAX_FREQ 257
 #define MAX_TAM_NOME 201
 #define MAX_TAM_HEAP 256
+#define FOLHA 1
+#define NAO_FOLHA 0
 
 typedef struct Letra
 {
@@ -32,8 +34,53 @@ struct Heap
 // salva os digitos do binario
 struct CodigoBinario
 {
-    int digitos[8]; // cada digito do binario
+    int codigo_bin;
+    int tamanho;
+    char caractere;
 };
+
+struct NoArvHuff {
+    struct NoArvHuff* dir, * esq;
+    union {
+        struct Letra letra;
+        int soma_frequencia;
+    } info;
+    char tipo;
+};
+
+struct ArvHuff {
+    struct NoArvHuff* raiz;
+    int tam;
+};
+
+struct ArvHuff gerar_arv_huff (struct Heap heap) {
+    struct ArvHuff arv_huff;
+    arv_huff.raiz = NULL;
+    arv_huff.raiz = 0;
+    int i = 0;
+
+    while(i < heap.tam) {
+        struct NoArvHuff* nova_folha = (struct NoArvHuff*)(malloc(sizeof(struct NoArvHuff)));
+
+        nova_folha->tipo = FOLHA;
+        nova_folha->info.letra = heap.vetor_chaves[i];
+        nova_folha->esq = nova_folha->dir = NULL;
+
+        struct NoArvHuff* novo = (struct NoArvHuff*)(malloc(sizeof(struct NoArvHuff)));
+
+        //  no primeiro elemento, a raiz nao esta alocada, na linha 74 vai acessar memoria nao alocada
+        // , gerando assim um segmentation fault
+        novo->tipo = NAO_FOLHA;
+        novo->info.soma_frequencia = arv_huff.raiz->info.soma_frequencia + nova_folha->info.letra.frequencia; // erro de segmentation
+        novo->dir = nova_folha;
+        novo->esq = arv_huff.raiz;
+
+        arv_huff.raiz = novo;
+
+        i++;
+    }
+    return arv_huff;
+}
 
 int pai(int i)
 {
@@ -55,29 +102,28 @@ int direito(int i)
 
 void troca(Letra *letra1, Letra *letra2)
 {
-    Letra *aux = letra1;
-    letra1 = letra2;
-    letra2 = aux;
+    Letra aux = *letra1;
+    *letra1= *letra2;
+    *letra2 = aux;
 }
 
-void desce(struct Heap *heap, int i)
+void desce(struct Heap heap, int i)
 {
-    int no_esquerdo_pos, no_direito_pos, maior;
+    int esq, dir, maior;
 
-    no_esquerdo_pos = esquerdo(i);
-    no_direito_pos = direito(i);
+    esq = esquerdo(i);
+    dir = direito(i);
 
-    if (no_esquerdo_pos < heap->tam && heap->vetor_chaves[no_direito_pos].frequencia > heap->vetor_chaves[i].frequencia)
-        maior = no_esquerdo_pos;
+    if (esq < heap.tam && heap.vetor_chaves[esq].frequencia > heap.vetor_chaves[i].frequencia)
+        maior = esq;
     else
         maior = i;
 
-    if (no_direito_pos < heap->tam && heap->vetor_chaves[no_direito_pos].frequencia > heap->vetor_chaves[maior].frequencia)
-        maior = no_direito_pos;
+    if (dir < heap.tam && heap.vetor_chaves[dir].frequencia > heap.vetor_chaves[maior].frequencia)
+        maior = dir;
 
-    if (maior != i)
-    {
-        troca((heap->vetor_chaves + maior), (heap->vetor_chaves + maior));
+    if(maior != i) {
+        troca(heap.vetor_chaves + i, heap.vetor_chaves + maior);
         desce(heap, maior);
     }
 }
@@ -85,10 +131,39 @@ void desce(struct Heap *heap, int i)
 void imprime_heap(struct Heap heap)
 {
     printf("\nHeap:\n");
-    for (int i = 0; i <= heap.tam; i++)
+    for (int i = 0; i < heap.tam; i++)
     {
         printf("Chave: %c Frequencia: %d\n", heap.vetor_chaves[i].chave, heap.vetor_chaves[i].frequencia);
     }
+}
+
+void heapsort (struct Heap heap)
+{
+    for (int i = heap.tam- 1; i >= 0; i--) {
+        troca(heap.vetor_chaves, heap.vetor_chaves + i);
+        heap.tam--;
+        desce(heap, 0);
+    }
+}
+
+struct Heap inicia_heap ()
+{
+    struct Heap hp;
+    hp.vetor_chaves = (struct Letra*)(malloc(MAX_TAM_HEAP * sizeof(struct Letra)));
+    hp.tam = 0;
+    return hp;
+}
+
+void libera_heap(struct Heap heap)
+{
+    free(heap.vetor_chaves);
+}
+
+Letra inicia_letra (char c) {
+    struct Letra l;
+    l.chave = c;
+    l.frequencia = 0;
+    return l;
 }
 
 int compacta_arquivo(char *nome_arquivo)
@@ -97,23 +172,16 @@ int compacta_arquivo(char *nome_arquivo)
     FILE *file;
     file = fopen(nome_arquivo, "r"); // abre o arquivo para leitura
 
-    struct Heap heap;
-    // inicia o heap
-    heap.tam = -1;
-    // dar free
-    heap.vetor_chaves = malloc(MAX_TAM_HEAP * sizeof(Letra));
-
     // inicia o vetor
     for (int i = 0; i < 257; i++)
-    {
-        frequencia[i].frequencia = 0;
-        frequencia[i].chave = i;
-    }
+        frequencia[i] = inicia_letra(i);
 
-    // leitura do arquivo
+
     char c;
+
     while ((c = fgetc(file)) != EOF)
         frequencia[c].frequencia++; // calcula as frequencias
+
 
     // imprime as informacoes lidas
     for (int i = 0; i < 257; i++)
@@ -125,21 +193,27 @@ int compacta_arquivo(char *nome_arquivo)
     }
     printf("===============================");
 
+
+    struct Heap heap = inicia_heap();
+
     // percoree o vetor com as chaves e as adiciona
     // no heap
-    for (int i = 0; i < 256; i++)
+    for (int i = 0; i < MAX_TAM_HEAP; i++)
     {
         // se a letra foi lida alguma vez
         if (frequencia[i].frequencia != 0)
         {
+            heap.vetor_chaves[heap.tam] = frequencia[i];
             heap.tam++;
-            *(heap.vetor_chaves + heap.tam) = frequencia[i];
         }
     }
-    desce(&heap, i);
 
-    imprime_heap(heap);
+    heapsort(heap);
 
+    struct ArvHuff arv_huff = gerar_arv_huff(heap);
+
+
+    libera_heap(heap);
     return 0;
 }
 
